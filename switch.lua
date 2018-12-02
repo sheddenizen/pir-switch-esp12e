@@ -15,6 +15,9 @@ status = {
 
 shutdownCount = 5
 
+function verbose(str)
+end
+
 function info(str)
     print("i: "..str)
 end
@@ -148,6 +151,36 @@ function mqtt_offline_cb(client)
     xmit_cleanup()
 end
 
+function e131_rx(skt,data,port,ip)
+     verbose("Rx: "..ip..":"..port.." "..string.len(data))
+     -- Big enough to be a data packet including our channels
+     if (string.len(data) < (125 + 3 + e131Cfg.channel)) then 
+        verbose("Rejected, too small")
+        return 
+     end
+
+    local typeId = "ASC-E1.17\000\000\000" 
+    if (string.sub(data, 5, 16) ~= typeId) then
+        verbose("Rejected, not e1.17 "..string.byte(data, 5)..string.byte(data, 6)..string.sub(data, 5, 16))
+        return
+    end    
+    if (string.byte(data, 22) ~= 4) then
+        verbose("Rejected, not e1.31 PDU "..string.byte(data, 22))
+        return
+    end    
+    if (string.byte(data, 44) ~= 2) then
+        verbose("Rejected, not DMP "..string.byte(data, 44))
+        return
+    end
+    for n = 0, 2 do
+        local val = string.byte(data, 126 + e131Cfg.channel + n)
+        pwm.setduty(n+5, val * 4)
+        status.light[n+1] = val
+        verbose("Set light channel "..n.." to "..val)
+    end
+end    
+
+
 function switch_start()
 
     -- Init outputs
@@ -183,6 +216,13 @@ function switch_start()
     mqClnt=mqtt.Client(mqttCfg.client, 20, mqttCfg.user, mqttCfg.pass)
     mqClnt:on("offline", mqtt_offline_cb)
     mqClnt:on("message", mqtt_message_cb)
+
+    -- Set up e1.31 multicast receive
+    s = net.createUDPSocket()
+    e131Ip = "239.255."..(e131Cfg.universe/256).."."..(e131Cfg.universe % 256)
+    s:listen(5568, e131Ip)
+    s:on("receive", e131_rx)
+    net.multicastJoin("", e131Ip)
 
 end
 

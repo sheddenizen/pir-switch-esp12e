@@ -17,3 +17,9 @@ mqttCfg =
     user = "",
     pass = "",
 }
+
+e131Cfg =
+{
+    universe = 1,
+    channel = 143
+}
