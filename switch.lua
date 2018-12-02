@@ -134,6 +134,14 @@ end
 function wifi_connected_cb(tbl)
     info("wifi connected"..sjson.encode(tbl))
     mqClnt:connect(mqttCfg.broker, mqttCfg.port, 0, 0, mqtt_connect_cb, mqtt_fail_cb)
+
+    -- Set up e1.31 multicast receive
+    s = net.createUDPSocket()
+    e131Ip = "239.255."..(e131Cfg.universe/256).."."..(e131Cfg.universe % 256)
+    s:listen(5568, e131Ip)
+    s:on("receive", e131_rx)
+    net.multicastJoin("", e131Ip)
+
 end
 
 function wifi_fail_cb(tbl)
@@ -216,13 +224,6 @@ function switch_start()
     mqClnt=mqtt.Client(mqttCfg.client, 20, mqttCfg.user, mqttCfg.pass)
     mqClnt:on("offline", mqtt_offline_cb)
     mqClnt:on("message", mqtt_message_cb)
-
-    -- Set up e1.31 multicast receive
-    s = net.createUDPSocket()
-    e131Ip = "239.255."..(e131Cfg.universe/256).."."..(e131Cfg.universe % 256)
-    s:listen(5568, e131Ip)
-    s:on("receive", e131_rx)
-    net.multicastJoin("", e131Ip)
 
 end
 
